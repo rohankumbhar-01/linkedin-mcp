@@ -213,10 +213,63 @@ def linkedin_publish_approved_post(text: str, approved: bool, visibility: str = 
 
 
 @mcp.tool()
+def linkedin_get_my_posts(count: int = 10, start: int = 0) -> dict[str, Any]:
+    """Retrieve the authenticated member's posts. Requires LinkedIn approval for r_member_social."""
+    if not 1 <= count <= 100:
+        raise ValueError("count must be between 1 and 100")
+    if start < 0:
+        raise ValueError("start must be >= 0")
+    with httpx.Client(timeout=20) as client:
+        me_response = client.get(USERINFO_URL, headers=_headers())
+        if me_response.is_error:
+            return {"stage": "identity_lookup", **_api_error(me_response)}
+        subject = me_response.json().get("sub")
+        if not subject:
+            return {"ok": False, "error": "LinkedIn userinfo did not return sub"}
+        author = subject if str(subject).startswith("urn:li:") else f"urn:li:person:{subject}"
+        response = client.get(
+            f"{API_BASE}/rest/posts",
+            params={"author": author, "q": "author", "count": count, "start": start, "sortBy": "LAST_MODIFIED"},
+            headers={**_headers(), "X-RestLi-Method": "FINDER"},
+        )
+    if response.is_error:
+        return {**_api_error(response), "note": "Reading member posts requires r_member_social, which LinkedIn restricts to approved apps."}
+    return {"ok": True, "posts": response.json(), "start": start, "count": count}
+
+
+@mcp.tool()
+def linkedin_get_post(post_urn: str) -> dict[str, Any]:
+    """Retrieve a specific post by its LinkedIn URN, if the app has permission."""
+    from urllib.parse import quote
+    if not post_urn.startswith(("urn:li:share:", "urn:li:ugcPost:")):
+        raise ValueError("post_urn must be a urn:li:share:... or urn:li:ugcPost:... value")
+    with httpx.Client(timeout=20) as client:
+        response = client.get(f"{API_BASE}/rest/posts/{quote(post_urn, safe='')}", params={"viewContext": "AUTHOR"}, headers=_headers())
+    if response.is_error:
+        return _api_error(response)
+    return {"ok": True, "post": response.json()}
+
+
+@mcp.tool()
+def linkedin_delete_approved_post(post_urn: str, approved: bool) -> dict[str, Any]:
+    """Delete a post only after explicit approval. This is irreversible and depends on LinkedIn API access."""
+    if approved is not True:
+        return {"deleted": False, "message": "Not deleted. Set approved=true only after the user explicitly confirms deletion of this exact post."}
+    if not post_urn.startswith(("urn:li:share:", "urn:li:ugcPost:")):
+        raise ValueError("post_urn must be a urn:li:share:... or urn:li:ugcPost:... value")
+    from urllib.parse import quote
+    with httpx.Client(timeout=20) as client:
+        response = client.delete(f"{API_BASE}/rest/posts/{quote(post_urn, safe='')}", headers=_headers())
+    if response.is_error:
+        return {"deleted": False, **_api_error(response), "note": "Deletion support depends on LinkedIn API access and permissions."}
+    return {"deleted": True, "post_urn": post_urn, "status_code": response.status_code}
+
+
+@mcp.tool()
 def linkedin_capabilities_and_limits() -> dict[str, Any]:
     """Explain which features are implemented and which depend on LinkedIn API approval."""
     return {
-        "implemented": ["OAuth authorization-code exchange", "basic OpenID profile read", "profile rewrite planning", "post draft preparation", "approval-gated post publishing via official Posts API"],
+        "implemented": ["OAuth authorization-code exchange", "basic OpenID profile read", "profile rewrite planning", "post draft preparation", "approval-gated post publishing via official Posts API", "retrieval of own posts when r_member_social is approved", "retrieval/deletion of a specific post where permitted"],
         "not_implemented_or_not_generally_available": ["automatic editing of headline/About/experience/skills: LinkedIn does not generally expose these profile-write operations to ordinary apps", "reading arbitrary feed posts and connections", "full personal analytics unless the app is approved for the relevant products"],
         "requirements": ["LinkedIn developer app", "approved products/scopes", "valid redirect URI", "client ID and secret stored securely", "a currently supported LinkedIn API version"],
         "safety": "Never paste access tokens or client secrets into an LLM prompt. Keep publishing approval explicit.",
