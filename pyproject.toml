@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "linkedin-mcp"
+version = "0.1.0"
+description = "An approval-first MCP server for authorized LinkedIn profile workflows and content publishing."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Rohan Kumbhar" }]
+dependencies = [
+  "mcp[cli]>=1.9.0,<2.0.0",
+  "httpx>=0.27.0,<1.0.0",
+  "python-dotenv>=1.0.1,<2.0.0",
+]
+
+[project.scripts]
+linkedin-mcp = "linkedin_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["linkedin_mcp"]
