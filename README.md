@@ -56,6 +56,9 @@ The configured redirect URI must exactly match the LinkedIn developer app settin
 | `linkedin_draft_profile_changes` | Prepare profile rewrite instructions; no writes |
 | `linkedin_prepare_post` | Prepare a post draft |
 | `linkedin_publish_approved_post` | Publish only when `approved=true` |
+| `linkedin_get_my_posts` | Retrieve your posts when LinkedIn approves `r_member_social` |
+| `linkedin_get_post` | Retrieve a specific post by URN where permitted |
+| `linkedin_delete_approved_post` | Delete a post only with explicit approval and API permission |
 | `linkedin_capabilities_and_limits` | Report implemented capabilities and API limitations |
 
 ## LinkedIn API access
